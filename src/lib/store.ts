@@ -23,6 +23,7 @@ export interface Test {
 export interface Attempt {
   id: string;
   testId: string;
+  name: string; // User's display name
   telegramUsername: string;
   answers: (number | null)[]; // index of selected option per question
   score: number;
@@ -31,6 +32,30 @@ export interface Attempt {
   submittedAt: string | null;
   warnings: number;
   autoSubmitted: boolean;
+}
+
+// Stored completed attempts in localStorage for "already submitted" check
+export interface StoredAttemptRecord {
+  testId: string;
+  attemptId: string;
+  testSlug: string;
+}
+
+export function getStoredAttempts(): StoredAttemptRecord[] {
+  return getItem<StoredAttemptRecord[]>("quizlab_submitted_tests", []);
+}
+
+export function saveStoredAttempt(record: StoredAttemptRecord) {
+  const records = getStoredAttempts();
+  const exists = records.find(r => r.testId === record.testId);
+  if (!exists) {
+    records.push(record);
+    setItem("quizlab_submitted_tests", records);
+  }
+}
+
+export function getStoredAttemptByTestId(testId: string): StoredAttemptRecord | undefined {
+  return getStoredAttempts().find(r => r.testId === testId);
 }
 
 import { supabase, isSupabaseConfigured } from './supabase';
@@ -199,6 +224,7 @@ export async function saveAttemptToSupabase(
       .insert({
         id: attempt.id,
         test_id: attempt.testId,
+        name: attempt.name,
         telegram_username: attempt.telegramUsername,
         answers: attempt.answers,
         score: attempt.score,

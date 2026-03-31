@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getTestById, saveAttempt, saveAttemptToSupabase, generateId, type Test } from "@/lib/store";
+import { getTestById, saveAttempt, saveAttemptToSupabase, generateId, saveStoredAttempt, type Test } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, AlertTriangle, Clock, Send } from "lucide-react";
 
@@ -17,8 +17,10 @@ const ExamPage = () => {
   const warningsRef = useRef(0);
   const submittedRef = useRef(false);
 
+  const userName = sessionStorage.getItem("quizlab_user_name");
   const telegramUser = sessionStorage.getItem("quizlab_user");
   const testId = sessionStorage.getItem("quizlab_test_id");
+  const testSlug = sessionStorage.getItem("quizlab_test_slug") || slug;
   const deviceFingerprintRef = useRef<string>("");
 
   // Generate device fingerprint
@@ -40,6 +42,7 @@ const ExamPage = () => {
     const attempt = {
       id: generateId(),
       testId: test.id,
+      name: userName || "Anonymous",
       telegramUsername: telegramUser || "unknown",
       answers: [...answers],
       score,
@@ -53,6 +56,16 @@ const ExamPage = () => {
     // Save to localStorage (backup)
     saveAttempt(attempt);
 
+    // Save to browser cache for "already submitted" check
+    localStorage.setItem(`quizlab_result_${testSlug}`, JSON.stringify(attempt));
+    
+    // Save record of submission
+    saveStoredAttempt({
+      testId: test.id,
+      attemptId: attempt.id,
+      testSlug: testSlug || "",
+    });
+
     // Save to Supabase
     saveAttemptToSupabase(attempt, deviceFingerprintRef.current).catch(err => {
       console.error("Failed to save to Supabase:", err);
@@ -60,7 +73,7 @@ const ExamPage = () => {
 
     sessionStorage.setItem("quizlab_result", JSON.stringify(attempt));
     navigate(`/test/${slug}/result`);
-  }, [test, answers, telegramUser, timeLeft, slug, navigate]);
+  }, [test, answers, userName, telegramUser, timeLeft, slug, testSlug, navigate]);
 
   useEffect(() => {
     if (!testId || !telegramUser) {

@@ -212,13 +212,14 @@ export async function deleteQuestion(id: string): Promise<boolean> {
 
 // ============= ATTEMPTS =============
 export async function saveAttempt(attempt: Attempt, deviceFingerprint: string, ipAddress?: string): Promise<boolean> {
-  const { id, testId, telegramUsername, answers, score, totalQuestions, startedAt, submittedAt, warnings, autoSubmitted } = attempt;
+  const { id, testId, name, telegramUsername, answers, score, totalQuestions, startedAt, submittedAt, warnings, autoSubmitted } = attempt;
 
   const { error } = await supabase
     .from('attempts')
     .insert({
       id,
       test_id: testId,
+      name: name || '',
       telegram_username: telegramUsername,
       answers,
       score,
@@ -254,6 +255,7 @@ export async function getAttempts(): Promise<Attempt[]> {
   return (data || []).map(a => ({
     id: a.id,
     testId: a.test_id,
+    name: a.name || '',
     telegramUsername: a.telegram_username,
     answers: a.answers || [],
     score: a.score,
@@ -280,6 +282,7 @@ export async function getAttemptsByTest(testId: string): Promise<Attempt[]> {
   return (data || []).map(a => ({
     id: a.id,
     testId: a.test_id,
+    name: a.name || '',
     telegramUsername: a.telegram_username,
     answers: a.answers || [],
     score: a.score,
@@ -307,6 +310,7 @@ export async function checkExistingAttempt(testId: string, deviceFingerprint: st
   return {
     id: data.id,
     testId: data.test_id,
+    name: data.name || '',
     telegramUsername: data.telegram_username,
     answers: data.answers || [],
     score: data.score,
@@ -360,14 +364,38 @@ export async function getLeaderboard(testId: string, limit: number = 10) {
   // First try Supabase if configured
   if (isSupabaseConfigured) {
     try {
-      const { data, error } = await supabase
+      // Try the leaderboard view first
+      const { data: viewData, error: viewError } = await supabase
         .from('leaderboard_view')
         .select('*')
         .eq('test_id', testId)
         .limit(limit);
 
+      if (!viewError && viewData && viewData.length > 0) {
+        return viewData;
+      }
+
+      // Fallback to direct attempts query
+      const { data, error } = await supabase
+        .from('attempts')
+        .select('*')
+        .eq('test_id', testId)
+        .order('score', { ascending: false })
+        .limit(limit);
+
       if (!error && data && data.length > 0) {
-        return data;
+        const test = getLocalTestById(testId);
+        return data.map((a: any, index: number) => ({
+          test_id: a.test_id,
+          test_name: test?.name || 'Unknown Test',
+          name: a.name || '',
+          telegram_username: a.telegram_username,
+          score: a.score,
+          total_questions: a.total_questions,
+          percentage: (a.score / a.total_questions) * 100,
+          submitted_at: a.submitted_at,
+          rank: index + 1,
+        }));
       }
     } catch (err) {
       console.error('Error fetching leaderboard from Supabase:', err);
@@ -381,15 +409,16 @@ export async function getLeaderboard(testId: string, limit: number = 10) {
   // Convert to leaderboard format
   const leaderboard = localAttempts
     .filter(a => a.submittedAt)
-    .map((a, index) => ({
+    .map((a) => ({
       test_id: a.testId,
       test_name: test?.name || 'Unknown Test',
+      name: a.name || '',
       telegram_username: a.telegramUsername,
       score: a.score,
       total_questions: a.totalQuestions,
       percentage: (a.score / a.totalQuestions) * 100,
       submitted_at: a.submittedAt,
-      rank: 0, // Will be set after sorting
+      rank: 0,
     }))
     .sort((a, b) => b.percentage - a.percentage || new Date(a.submitted_at!).getTime() - new Date(b.submitted_at!).getTime())
     .slice(0, limit)

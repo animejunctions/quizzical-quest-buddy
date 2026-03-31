@@ -2,7 +2,8 @@ import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getTestById, getAttemptsByTest, type Attempt, type Test } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { ArrowLeft, ChevronDown, ChevronUp, Trophy, Users, BarChart3 } from "lucide-react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 const AdminResults = () => {
@@ -44,6 +45,7 @@ const AdminResults = () => {
               const formattedAttempts = data.map((a: any) => ({
                 id: a.id,
                 testId: a.test_id,
+                name: a.name || '',
                 telegramUsername: a.telegram_username,
                 answers: a.answers || [],
                 score: a.score,
@@ -93,15 +95,56 @@ const AdminResults = () => {
     );
   }
 
+  // Calculate stats
+  const avgScore = attempts.length > 0 
+    ? attempts.reduce((sum, a) => sum + (a.score / a.totalQuestions) * 100, 0) / attempts.length 
+    : 0;
+  const highestScore = attempts.length > 0 
+    ? Math.max(...attempts.map(a => (a.score / a.totalQuestions) * 100)) 
+    : 0;
+
   return (
     <div className="min-h-screen p-4 md:p-8">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="max-w-6xl mx-auto">
         <Button variant="ghost" onClick={() => navigate("/admin/dashboard")} className="mb-4">
           <ArrowLeft className="w-4 h-4 mr-1" /> Back
         </Button>
 
         <h1 className="text-2xl font-bold text-foreground mb-2">Results: {testName}</h1>
-        <p className="text-muted-foreground text-sm mb-6">{attempts.length} attempt(s)</p>
+        
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="glass rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <Users className="w-8 h-8 text-primary" />
+              <div>
+                <p className="text-2xl font-bold text-foreground">{attempts.length}</p>
+                <p className="text-sm text-muted-foreground">Total Attempts</p>
+              </div>
+            </div>
+          </div>
+          <div className="glass rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <BarChart3 className="w-8 h-8 text-primary" />
+              <div>
+                <p className="text-2xl font-bold text-foreground">{avgScore.toFixed(1)}%</p>
+                <p className="text-sm text-muted-foreground">Average Score</p>
+              </div>
+            </div>
+          </div>
+          <div className="glass rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <Trophy className="w-8 h-8 text-success" />
+              <div>
+                <p className="text-2xl font-bold text-foreground">{highestScore.toFixed(1)}%</p>
+                <p className="text-sm text-muted-foreground">Highest Score</p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {attempts.length === 0 ? (
           <div className="glass rounded-xl p-8 text-center text-muted-foreground">No attempts yet</div>
@@ -115,8 +158,8 @@ const AdminResults = () => {
                   className="w-full p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-secondary/50 transition-colors"
                 >
                   <div className="text-left flex-1">
-                    <p className="font-semibold text-foreground">@{attempt.telegramUsername}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-semibold text-foreground">{attempt.name || attempt.telegramUsername}</p>
+                    <p className="text-xs text-muted-foreground">@{attempt.telegramUsername} &bull; 
                       {new Date(attempt.startedAt).toLocaleString()}
                       {attempt.autoSubmitted && <span className="text-warning ml-2">⚠ Auto-submitted</span>}
                       {attempt.warnings > 0 && <span className="text-destructive ml-2">{attempt.warnings} warning(s)</span>}

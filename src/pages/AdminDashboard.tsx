@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { getTests, deleteTest, type Test } from "@/lib/store";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Edit, Users, LogOut, Copy } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Plus, Trash2, Edit, Users, LogOut, Copy, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 
 const AdminDashboard = () => {
@@ -35,10 +36,11 @@ const AdminDashboard = () => {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground text-sm">Manage your tests</p>
+            <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
+            <p className="text-muted-foreground text-sm">Manage your tests and view results</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button onClick={() => navigate("/admin/test/new")}>
               <Plus className="w-4 h-4 mr-1" /> New Test
             </Button>
@@ -75,16 +77,19 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="flex gap-1.5 shrink-0">
-                  <Button size="sm" variant="ghost" onClick={() => copyLink(test.slug)}>
+                  <Button size="sm" variant="ghost" onClick={() => copyLink(test.slug)} title="Copy link">
                     <Copy className="w-3.5 h-3.5" />
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/results/${test.id}`)}>
+                  <Button size="sm" variant="ghost" onClick={() => navigate(`/test/${test.id}/leaderboard`)} title="Leaderboard">
+                    <BarChart3 className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/results/${test.id}`)} title="View results">
                     <Users className="w-3.5 h-3.5" />
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/test/${test.id}`)}>
+                  <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/test/${test.id}`)} title="Edit test">
                     <Edit className="w-3.5 h-3.5" />
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(test.id)}>
+                  <Button size="sm" variant="ghost" onClick={() => handleDelete(test.id)} title="Delete test">
                     <Trash2 className="w-3.5 h-3.5 text-destructive" />
                   </Button>
                 </div>
