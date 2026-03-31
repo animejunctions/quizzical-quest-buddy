@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS attempts (
   device_fingerprint TEXT,
   ip_address TEXT,
   user_agent TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(test_id, telegram_username)
 );
 
 -- Create cheat violations table
@@ -60,10 +61,6 @@ CREATE INDEX IF NOT EXISTS idx_attempts_device_fingerprint ON attempts(device_fi
 CREATE INDEX IF NOT EXISTS idx_tests_slug ON tests(slug);
 CREATE INDEX IF NOT EXISTS idx_tests_is_active ON tests(is_active);
 
--- Create a unique constraint to prevent same user from attempting same test twice
-CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_attempt_per_user_per_test 
-ON attempts(test_id, telegram_username);
-
 -- Create leaderboard view
 DROP VIEW IF EXISTS leaderboard_view;
 CREATE VIEW leaderboard_view AS
@@ -83,9 +80,3 @@ FROM attempts a
 JOIN tests t ON t.id = a.test_id
 WHERE a.submitted_at IS NOT NULL
 ORDER BY a.test_id, a.score DESC, a.submitted_at ASC;
-
--- Disable RLS for public access (this is a simple quiz app)
-ALTER TABLE tests DISABLE ROW LEVEL SECURITY;
-ALTER TABLE questions DISABLE ROW LEVEL SECURITY;
-ALTER TABLE attempts DISABLE ROW LEVEL SECURITY;
-ALTER TABLE cheat_violations DISABLE ROW LEVEL SECURITY;

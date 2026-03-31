@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getTestBySlug } from "@/lib/store";
+import { getTestBySlug, checkExistingAttemptByUsername } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileText } from "lucide-react";
+import { FileText, AlertCircle } from "lucide-react";
 
 const TestEntry = () => {
   const { slug } = useParams();
@@ -12,8 +12,18 @@ const TestEntry = () => {
   const [telegram, setTelegram] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [test, setTest] = useState<any>(null);
 
-  const test = slug ? getTestBySlug(slug) : undefined;
+  useEffect(() => {
+    const loadTest = async () => {
+      if (slug) {
+        const t = await getTestBySlug(slug);
+        setTest(t);
+      }
+    };
+    loadTest();
+  }, [slug]);
 
   if (!test) {
     return (
@@ -26,20 +36,38 @@ const TestEntry = () => {
     );
   }
 
-  const handleEnter = (e: React.FormEvent) => {
+  const handleEnter = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!telegram.trim()) {
-      setError("Enter your Telegram username");
-      return;
+    setLoading(true);
+    setError("");
+
+    try {
+      if (!telegram.trim()) {
+        setError("Enter your Telegram username");
+        setLoading(false);
+        return;
+      }
+      if (code.trim() !== test.secretCode) {
+        setError("Invalid secret code");
+        setLoading(false);
+        return;
+      }
+
+      // Check if user has already attempted this test
+      const existingAttempt = await checkExistingAttemptByUsername(test.id, telegram.trim());
+      if (existingAttempt) {
+        setError("You have already attempted this test. Only one attempt per user is allowed.");
+        setLoading(false);
+        return;
+      }
+
+      // Store in session and navigate
+      sessionStorage.setItem("quizlab_user", telegram.trim());
+      sessionStorage.setItem("quizlab_test_id", test.id);
+      navigate(`/test/${slug}/exam`);
+    } finally {
+      setLoading(false);
     }
-    if (code.trim() !== test.secretCode) {
-      setError("Invalid secret code");
-      return;
-    }
-    // Store in session and navigate
-    sessionStorage.setItem("quizlab_user", telegram.trim());
-    sessionStorage.setItem("quizlab_test_id", test.id);
-    navigate(`/test/${slug}/exam`);
   };
 
   return (
@@ -75,8 +103,15 @@ const TestEntry = () => {
               className="bg-secondary"
             />
           </div>
-          {error && <p className="text-destructive text-sm">{error}</p>}
-          <Button type="submit" className="w-full">Start Test</Button>
+          {error && (
+            <div className="flex gap-2 items-start p-3 bg-destructive/10 rounded-lg border border-destructive/30">
+              <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+              <p className="text-destructive text-sm">{error}</p>
+            </div>
+          )}
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? "Checking..." : "Start Test"}
+          </Button>
         </form>
       </div>
     </div>

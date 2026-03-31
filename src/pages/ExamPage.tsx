@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getTestById, saveAttempt, generateId, type Test } from "@/lib/store";
+import { getTestById, saveAttempt, saveAttemptToSupabase, generateId, type Test } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, AlertTriangle, Clock, Send } from "lucide-react";
 
@@ -19,6 +19,13 @@ const ExamPage = () => {
 
   const telegramUser = sessionStorage.getItem("quizlab_user");
   const testId = sessionStorage.getItem("quizlab_test_id");
+  const deviceFingerprintRef = useRef<string>("");
+
+  // Generate device fingerprint
+  useEffect(() => {
+    const fp = `${navigator.userAgent}-${navigator.language}-${new Date().getTimezoneOffset()}`;
+    deviceFingerprintRef.current = btoa(fp);
+  }, []);
 
   const submitTest = useCallback(() => {
     if (submittedRef.current || !test) return;
@@ -43,7 +50,14 @@ const ExamPage = () => {
       autoSubmitted: warningsRef.current >= 3 || (timeLeft !== null && timeLeft <= 0),
     };
 
+    // Save to localStorage (backup)
     saveAttempt(attempt);
+
+    // Save to Supabase
+    saveAttemptToSupabase(attempt, deviceFingerprintRef.current).catch(err => {
+      console.error("Failed to save to Supabase:", err);
+    });
+
     sessionStorage.setItem("quizlab_result", JSON.stringify(attempt));
     navigate(`/test/${slug}/result`);
   }, [test, answers, telegramUser, timeLeft, slug, navigate]);
