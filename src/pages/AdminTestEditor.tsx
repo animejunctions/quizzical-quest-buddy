@@ -73,28 +73,30 @@ const AdminTestEditor = () => {
     for (const block of questionBlocks) {
       const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
       let question = "";
-      const options: string[] = [];
-      let correctAnswer = 0;
+      // Store options with their original letter positions
+      const optionsMap: { [key: string]: string } = {};
+      let correctAnswerLetter = "";
       let explanation = "";
       let foundAnswer = false;
       let foundExplanation = false;
 
       for (const line of lines) {
-        const lower = line.toLowerCase();
-        
         // Check for question line (Q. or Q:)
         if (/^q[.\s:]/i.test(line)) {
           question = line.replace(/^q[.\s:]\s*/i, "").trim();
         }
         // Check for options a) b) c) d) - must have content after the letter
         else if (/^[a-d][.)]\s*.+/i.test(line)) {
-          const optionText = line.replace(/^[a-d][.)]\s*/i, "").trim();
-          options.push(optionText);
+          const letterMatch = line.match(/^([a-d])[.)]/i);
+          if (letterMatch) {
+            const letter = letterMatch[1].toLowerCase();
+            const optionText = line.replace(/^[a-d][.)]\s*/i, "").trim();
+            optionsMap[letter] = optionText;
+          }
         }
         // Check for answer line - "A." followed by just a letter (a, b, c, or d)
         else if (/^A[.\s:]\s*[a-d]$/i.test(line)) {
-          const ansText = line.replace(/^A[.\s:]\s*/i, "").trim().toLowerCase();
-          correctAnswer = ansText.charCodeAt(0) - 97;
+          correctAnswerLetter = line.replace(/^A[.\s:]\s*/i, "").trim().toLowerCase();
           foundAnswer = true;
         }
         // Check for explanation line (E. or E:)
@@ -108,13 +110,26 @@ const AdminTestEditor = () => {
         }
       }
 
+      // Build options array in order (a, b, c, d)
+      const options: string[] = [
+        optionsMap['a'] || "",
+        optionsMap['b'] || "",
+        optionsMap['c'] || "",
+        optionsMap['d'] || ""
+      ];
+      
+      // Convert correct answer letter to index (a=0, b=1, c=2, d=3)
+      const correctAnswer = correctAnswerLetter ? correctAnswerLetter.charCodeAt(0) - 97 : 0;
+
+      // Count non-empty options
+      const nonEmptyOptions = options.filter(o => o.trim()).length;
+
       // Only add if we have a valid question with at least 2 options
-      if (question && options.length >= 2) {
-        while (options.length < 4) options.push("");
+      if (question && nonEmptyOptions >= 2) {
         parsed.push({ 
           id: generateId(), 
           question, 
-          options: options.slice(0, 4), 
+          options, 
           correctAnswer, 
           explanation 
         });

@@ -60,11 +60,6 @@ export default function Leaderboard() {
 
     fetchLeaderboard();
   }, [testId]);
-      }
-    }
-
-    fetchLeaderboard();
-  }, [testId]);
 
   const getMedalColor = (rank: number) => {
     switch (rank) {
