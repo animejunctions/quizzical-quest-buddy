@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getTestById, saveTest, generateId, type Test, type Question } from "@/lib/store";
+import { generateId, type Test, type Question } from "@/lib/store";
+import { getTestById, saveTest, saveQuestion, deleteQuestion } from "@/lib/supabase-service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Plus, Trash2, GripVertical } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { ArrowLeft, Plus, Trash2, GripVertical, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const emptyQuestion = (): Question => ({
@@ -28,22 +30,37 @@ const AdminTestEditor = () => {
   const [questions, setQuestions] = useState<Question[]>([emptyQuestion()]);
   const [bulkText, setBulkText] = useState("");
   const [showBulk, setShowBulk] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (sessionStorage.getItem("quizlab_admin") !== "true") {
       navigate("/admin");
       return;
     }
-    if (!isNew && testId) {
-      const test = getTestById(testId);
-      if (test) {
-        setName(test.name);
-        setSlug(test.slug);
-        setSecretCode(test.secretCode);
-        setTimeLimit(test.timeLimit);
-        setQuestions(test.questions.length > 0 ? test.questions : [emptyQuestion()]);
+    
+    const loadTest = async () => {
+      if (!isNew && testId) {
+        setLoading(true);
+        try {
+          const test = await getTestById(testId);
+          if (test) {
+            setName(test.name);
+            setSlug(test.slug);
+            setSecretCode(test.secretCode);
+            setTimeLimit(test.timeLimit);
+            setQuestions(test.questions.length > 0 ? test.questions : [emptyQuestion()]);
+          }
+        } catch (error) {
+          console.error("Error loading test:", error);
+          toast.error("Failed to load test");
+        } finally {
+          setLoading(false);
+        }
       }
-    }
+    };
+    
+    loadTest();
   }, [testId, isNew, navigate]);
 
   const parseBulkText = () => {
@@ -131,7 +148,7 @@ const AdminTestEditor = () => {
     setQuestions((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim() || !slug.trim() || !secretCode.trim()) {
       toast.error("Name, slug, and secret code are required");
       return;
@@ -142,24 +159,60 @@ const AdminTestEditor = () => {
       return;
     }
 
-    const test: Test = {
-      id: isNew ? generateId() : testId!,
-      name: name.trim(),
-      slug: slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-"),
-      secretCode: secretCode.trim(),
-      timeLimit,
-      questions: validQuestions,
-      createdAt: isNew ? new Date().toISOString() : getTestById(testId!)?.createdAt || new Date().toISOString(),
-      isActive: true,
-    };
+    setSaving(true);
+    
+    try {
+      const testIdToUse = isNew ? generateId() : testId!;
+      
+      const test: Test = {
+        id: testIdToUse,
+        name: name.trim(),
+        slug: slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+        secretCode: secretCode.trim(),
+        timeLimit,
+        questions: validQuestions,
+        createdAt: new Date().toISOString(),
+        isActive: true,
+      };
 
-    saveTest(test);
-    toast.success(isNew ? "Test created!" : "Test updated!");
-    navigate("/admin/dashboard");
+      // Save test to Supabase
+      const savedTest = await saveTest(test);
+      
+      if (savedTest) {
+        // Save all questions
+        for (let i = 0; i < validQuestions.length; i++) {
+          await saveQuestion(testIdToUse, validQuestions[i], i);
+        }
+        
+        toast.success(isNew ? "Test created!" : "Test updated!");
+        navigate("/admin/dashboard");
+      } else {
+        toast.error("Failed to save test");
+      }
+    } catch (error) {
+      console.error("Error saving test:", error);
+      toast.error("Failed to save test");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass rounded-xl p-8 text-center">
+          <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading test...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-4 md:p-8">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="max-w-3xl mx-auto">
         <Button variant="ghost" onClick={() => navigate("/admin/dashboard")} className="mb-4">
           <ArrowLeft className="w-4 h-4 mr-1" /> Back
@@ -275,8 +328,10 @@ const AdminTestEditor = () => {
         </div>
 
         <div className="mt-6 flex gap-3">
-          <Button onClick={handleSave} className="flex-1">Save Test</Button>
-          <Button variant="outline" onClick={() => navigate("/admin/dashboard")}>Cancel</Button>
+          <Button onClick={handleSave} className="flex-1" disabled={saving}>
+            {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</> : "Save Test"}
+          </Button>
+          <Button variant="outline" onClick={() => navigate("/admin/dashboard")} disabled={saving}>Cancel</Button>
         </div>
       </div>
     </div>

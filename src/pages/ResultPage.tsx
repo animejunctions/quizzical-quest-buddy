@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getTestById, type Attempt, type Test } from "@/lib/store";
+import { type Attempt, type Test } from "@/lib/store";
+import { getTestById } from "@/lib/supabase-service";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { CheckCircle, XCircle, Trophy, ChevronLeft, ChevronRight, Home, BarChart3, Share2 } from "lucide-react";
+import { CheckCircle, XCircle, Trophy, ChevronLeft, ChevronRight, Home, BarChart3, Share2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const ResultPage = () => {
@@ -11,10 +12,11 @@ const ResultPage = () => {
   const navigate = useNavigate();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [showAllQuestions, setShowAllQuestions] = useState(false);
+  const [test, setTest] = useState<Test | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const raw = sessionStorage.getItem("quizlab_result");
   const attempt: Attempt | null = raw ? JSON.parse(raw) : null;
-  const test = attempt ? getTestById(attempt.testId) : undefined;
 
   // Save result to localStorage for future viewing
   useEffect(() => {

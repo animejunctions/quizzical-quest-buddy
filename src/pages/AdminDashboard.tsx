@@ -1,28 +1,47 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getTests, deleteTest, type Test } from "@/lib/store";
+import { type Test } from "@/lib/store";
+import { getTests, deleteTest } from "@/lib/supabase-service";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Plus, Trash2, Edit, Users, LogOut, Copy, BarChart3 } from "lucide-react";
+import { Plus, Trash2, Edit, Users, LogOut, Copy, BarChart3, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const AdminDashboard = () => {
   const [tests, setTests] = useState<Test[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  const loadTests = async () => {
+    setLoading(true);
+    try {
+      const data = await getTests();
+      setTests(data);
+    } catch (error) {
+      console.error("Error loading tests:", error);
+      toast.error("Failed to load tests");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (sessionStorage.getItem("quizlab_admin") !== "true") {
       navigate("/admin");
       return;
     }
-    setTests(getTests());
+    loadTests();
   }, [navigate]);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Delete this test?")) {
-      deleteTest(id);
-      setTests(getTests());
-      toast.success("Test deleted");
+      const success = await deleteTest(id);
+      if (success) {
+        await loadTests();
+        toast.success("Test deleted");
+      } else {
+        toast.error("Failed to delete test");
+      }
     }
   };
 
@@ -56,7 +75,12 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {tests.length === 0 ? (
+        {loading ? (
+          <div className="glass rounded-xl p-12 text-center">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading tests...</p>
+          </div>
+        ) : tests.length === 0 ? (
           <div className="glass rounded-xl p-12 text-center">
             <p className="text-muted-foreground mb-4">No tests created yet</p>
             <Button onClick={() => navigate("/admin/test/new")}>

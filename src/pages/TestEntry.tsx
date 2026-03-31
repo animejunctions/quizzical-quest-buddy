@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getTestBySlug, checkExistingAttemptByUsername, getTests, type Attempt } from "@/lib/store";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import { checkExistingAttemptByUsername, type Attempt } from "@/lib/store";
+import { getTestBySlug } from "@/lib/supabase-service";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,30 +31,13 @@ const TestEntry = () => {
             setExistingAttempt(JSON.parse(cachedResult));
           }
 
-          // Try Supabase first if configured, then fallback to localStorage
-          if (isSupabaseConfigured) {
-            const t = await getTestBySlug(slug);
-            if (t) {
-              setTest(t);
-              setPageLoading(false);
-              return;
-            }
-          }
-          
-          // Fallback to localStorage
-          const localTests = getTests();
-          const localTest = localTests.find(t => t.slug === slug);
-          if (localTest) {
-            setTest(localTest);
+          // Load test from Supabase
+          const t = await getTestBySlug(slug);
+          if (t) {
+            setTest(t);
           }
         } catch (err) {
           console.error('Error loading test:', err);
-          // Fallback to localStorage on error
-          const localTests = getTests();
-          const localTest = localTests.find(t => t.slug === slug);
-          if (localTest) {
-            setTest(localTest);
-          }
         }
         setPageLoading(false);
       }
