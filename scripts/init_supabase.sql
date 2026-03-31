@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS questions (
 CREATE TABLE IF NOT EXISTS attempts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   test_id UUID NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
+  name TEXT DEFAULT '',
   telegram_username TEXT NOT NULL,
   answers JSONB NOT NULL DEFAULT '[]',
   score INTEGER NOT NULL DEFAULT 0,
@@ -67,6 +68,7 @@ CREATE VIEW leaderboard_view AS
 SELECT 
   a.test_id,
   t.name as test_name,
+  a.name,
   a.telegram_username,
   a.score,
   a.total_questions,

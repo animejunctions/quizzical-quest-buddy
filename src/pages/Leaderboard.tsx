@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getLeaderboard } from '@/lib/supabase-service';
-import { getTestById, getAttemptsByTest } from '@/lib/store';
+import { getTestById } from '@/lib/supabase-service';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Trophy, ArrowLeft, TrendingUp, Medal } from 'lucide-react';
+import { Trophy, ArrowLeft, TrendingUp, Medal, Loader2 } from 'lucide-react';
 
 interface LeaderboardEntry {
   test_id: string;
@@ -36,48 +36,30 @@ export default function Leaderboard() {
           return;
         }
 
-        // Get test name
-        const test = getTestById(testId);
+        // Get test name from Supabase
+        const test = await getTestById(testId);
         if (test) {
           setTestName(test.name);
         }
 
-        // Try Supabase first, then fallback to localStorage
+        // Get leaderboard from Supabase
         const data = await getLeaderboard(testId, 100);
         
         if (data && data.length > 0) {
-          // Add rank numbers
-          const rankedData = data.map((entry: any, index: number) => ({
-            ...entry,
-            rank: index + 1,
-          }));
-          setEntries(rankedData as LeaderboardEntry[]);
+          setEntries(data as LeaderboardEntry[]);
         } else {
-          // Fallback to localStorage
-          const localAttempts = getAttemptsByTest(testId);
-          const leaderboard = localAttempts
-            .filter(a => a.submittedAt)
-            .map((a) => ({
-              test_id: a.testId,
-              test_name: test?.name || 'Unknown Test',
-              name: a.name || '',
-              telegram_username: a.telegramUsername,
-              score: a.score,
-              total_questions: a.totalQuestions,
-              percentage: (a.score / a.totalQuestions) * 100,
-              submitted_at: a.submittedAt || '',
-              rank: 0,
-            }))
-            .sort((a, b) => b.percentage - a.percentage || new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime())
-            .map((entry, index) => ({ ...entry, rank: index + 1 }));
-          
-          setEntries(leaderboard);
+          setError('No attempts found for this test');
         }
       } catch (err) {
         console.error('Error fetching leaderboard:', err);
         setError('Failed to load leaderboard');
       } finally {
         setLoading(false);
+      }
+    }
+
+    fetchLeaderboard();
+  }, [testId]);
       }
     }
 
@@ -154,7 +136,7 @@ export default function Leaderboard() {
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <div className="text-center">
-              <div className="inline-block animate-spin rounded-full h-10 w-10 border-2 border-primary border-t-transparent mb-4"></div>
+              <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-4" />
               <p className="text-muted-foreground">Loading leaderboard...</p>
             </div>
           </div>

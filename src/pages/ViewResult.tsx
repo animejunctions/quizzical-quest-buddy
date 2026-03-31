@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getTestById, getTests, type Attempt, type Test } from "@/lib/store";
+import { type Attempt, type Test } from "@/lib/store";
+import { getTestById } from "@/lib/supabase-service";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { CheckCircle, XCircle, Trophy, ChevronLeft, ChevronRight, Home, BarChart3 } from "lucide-react";
+import { CheckCircle, XCircle, Trophy, ChevronLeft, ChevronRight, Home, BarChart3, Loader2 } from "lucide-react";
 
 const ViewResult = () => {
   const { slug } = useParams();
@@ -11,31 +12,57 @@ const ViewResult = () => {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   const [test, setTest] = useState<Test | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Load attempt from localStorage
-    const storedResult = localStorage.getItem(`quizlab_result_${slug}`);
-    if (storedResult) {
-      const parsed = JSON.parse(storedResult);
-      setAttempt(parsed);
-      
-      // Load test data
-      const tests = getTests();
-      const foundTest = tests.find(t => t.slug === slug || t.id === parsed.testId);
-      if (foundTest) {
-        setTest(foundTest);
+    const loadResult = async () => {
+      // Load attempt from localStorage
+      const storedResult = localStorage.getItem(`quizlab_result_${slug}`);
+      if (storedResult) {
+        const parsed = JSON.parse(storedResult);
+        setAttempt(parsed);
+        
+        // Load test data from Supabase
+        try {
+          const foundTest = await getTestById(parsed.testId);
+          if (foundTest) {
+            setTest(foundTest);
+          }
+        } catch (error) {
+          console.error("Error loading test:", error);
+        }
       }
-    }
+      setLoading(false);
+    };
+
+    loadResult();
   }, [slug]);
 
-  if (!attempt || !test) {
+  if (!attempt) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="absolute top-4 right-4">
+          <ThemeToggle />
+        </div>
         <div className="glass rounded-xl p-8 text-center max-w-sm">
           <p className="text-muted-foreground mb-4">No saved result found for this test.</p>
           <Button variant="outline" onClick={() => navigate("/")}>
             <Home className="w-4 h-4 mr-2" /> Go Home
           </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || !test) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="absolute top-4 right-4">
+          <ThemeToggle />
+        </div>
+        <div className="glass rounded-xl p-8 text-center">
+          <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading result...</p>
         </div>
       </div>
     );

@@ -384,7 +384,7 @@ export async function getLeaderboard(testId: string, limit: number = 10) {
         .limit(limit);
 
       if (!error && data && data.length > 0) {
-        const test = getLocalTestById(testId);
+        const test = await getTestById(testId);
         return data.map((a: any, index: number) => ({
           test_id: a.test_id,
           test_name: test?.name || 'Unknown Test',

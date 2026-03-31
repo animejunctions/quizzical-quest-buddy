@@ -25,7 +25,30 @@ const ResultPage = () => {
     }
   }, [attempt, slug]);
 
-  if (!attempt || !test) {
+  // Load test from Supabase
+  useEffect(() => {
+    if (!attempt) {
+      navigate(`/test/${slug}`);
+      return;
+    }
+
+    const loadTest = async () => {
+      try {
+        const t = await getTestById(attempt.testId);
+        if (t) {
+          setTest(t);
+        }
+      } catch (error) {
+        console.error("Error loading test:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadTest();
+  }, [attempt, slug, navigate]);
+
+  if (!attempt) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="absolute top-4 right-4">
@@ -34,6 +57,20 @@ const ResultPage = () => {
         <div className="glass rounded-xl p-8 text-center">
           <p className="text-muted-foreground">No result found</p>
           <Button variant="outline" className="mt-4" onClick={() => navigate("/")}>Go Home</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || !test) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="absolute top-4 right-4">
+          <ThemeToggle />
+        </div>
+        <div className="glass rounded-xl p-8 text-center">
+          <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading results...</p>
         </div>
       </div>
     );
