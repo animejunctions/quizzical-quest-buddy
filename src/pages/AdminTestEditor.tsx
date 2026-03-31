@@ -81,31 +81,38 @@ const AdminTestEditor = () => {
       let foundExplanation = false;
 
       for (const line of lines) {
-        // Check for question line (Q. or Q:)
-        if (/^q[.\s:]/i.test(line)) {
-          question = line.replace(/^q[.\s:]\s*/i, "").trim();
+        // Check for question line (Q. or Q:) - must start with Q followed by . or space
+        if (/^Q[.\s:]/i.test(line)) {
+          question = line.replace(/^Q[.\s:]\s*/i, "").trim();
         }
-        // Check for options a) b) c) d) - must have content after the letter
-        else if (/^[a-d][.)]\s*.+/i.test(line)) {
-          const letterMatch = line.match(/^([a-d])[.)]/i);
-          if (letterMatch) {
-            const letter = letterMatch[1].toLowerCase();
-            const optionText = line.replace(/^[a-d][.)]\s*/i, "").trim();
-            optionsMap[letter] = optionText;
+        // Check for answer line FIRST - "A." or "Ans" followed by just a single letter (a, b, c, or d)
+        // This must be checked BEFORE options to avoid confusion
+        else if (/^(A[.\s:]|Ans[.\s:]?)\s*[a-d]\s*$/i.test(line)) {
+          const ansMatch = line.match(/[a-d]\s*$/i);
+          if (ansMatch) {
+            correctAnswerLetter = ansMatch[0].trim().toLowerCase();
+            foundAnswer = true;
           }
-        }
-        // Check for answer line - "A." followed by just a letter (a, b, c, or d)
-        else if (/^A[.\s:]\s*[a-d]$/i.test(line)) {
-          correctAnswerLetter = line.replace(/^A[.\s:]\s*/i, "").trim().toLowerCase();
-          foundAnswer = true;
         }
         // Check for explanation line (E. or E:)
         else if (/^E[.\s:]/i.test(line)) {
           explanation = line.replace(/^E[.\s:]\s*/i, "").trim();
           foundExplanation = true;
         }
+        // Check for options a) b) c) d) - lowercase letter followed by ) or . and then actual content (more than 1 char)
+        else if (/^[a-d][.)]\s*.{2,}/i.test(line)) {
+          const letterMatch = line.match(/^([a-d])[.)]/i);
+          if (letterMatch) {
+            const letter = letterMatch[1].toLowerCase();
+            const optionText = line.replace(/^[a-d][.)]\s*/i, "").trim();
+            // Only add if the option text is substantial (not just a single letter)
+            if (optionText.length > 1 || !/^[a-d]$/i.test(optionText)) {
+              optionsMap[letter] = optionText;
+            }
+          }
+        }
         // If no question yet, this might be the question text without Q. prefix
-        else if (!question && !foundAnswer && !foundExplanation) {
+        else if (!question && !foundAnswer && !foundExplanation && line.length > 5) {
           question = line;
         }
       }
