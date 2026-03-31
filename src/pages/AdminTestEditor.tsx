@@ -48,42 +48,59 @@ const AdminTestEditor = () => {
 
   const parseBulkText = () => {
     if (!bulkText.trim()) return;
-    const blocks = bulkText.split(/\n\s*\n/).filter(Boolean);
+    
+    // Split by "Q." or "Q " at the start of a line to separate questions
+    const questionBlocks = bulkText.split(/(?=^Q[.\s])/im).filter(b => b.trim());
     const parsed: Question[] = [];
 
-    for (const block of blocks) {
+    for (const block of questionBlocks) {
       const lines = block.split("\n").map((l) => l.trim()).filter(Boolean);
       let question = "";
       const options: string[] = [];
       let correctAnswer = 0;
       let explanation = "";
+      let foundAnswer = false;
+      let foundExplanation = false;
 
       for (const line of lines) {
         const lower = line.toLowerCase();
-        if (lower.startsWith("q.") || lower.startsWith("q ") || lower.startsWith("q:")) {
-          question = line.replace(/^q[.:]\s*/i, "");
-        } else if (/^[a-d][.)]\s*/i.test(line)) {
-          options.push(line.replace(/^[a-d][.)]\s*/i, ""));
-        } else if (lower.startsWith("o.") || lower.startsWith("o ") || lower.startsWith("o:")) {
-          // Options prefix line, skip
-        } else if (lower.startsWith("a.") || lower.startsWith("a:") || lower.startsWith("a ")) {
-          const ansText = line.replace(/^a[.:]\s*/i, "").trim().toLowerCase();
-          if (["a", "b", "c", "d"].includes(ansText)) {
-            correctAnswer = ansText.charCodeAt(0) - 97;
-          } else if (!question) {
-            // might be option a
-            options.push(line.replace(/^a[.)]\s*/i, ""));
-          }
-        } else if (lower.startsWith("e.") || lower.startsWith("e:") || lower.startsWith("e ")) {
-          explanation = line.replace(/^e[.:]\s*/i, "");
-        } else if (!question) {
+        
+        // Check for question line (Q. or Q:)
+        if (/^q[.\s:]/i.test(line)) {
+          question = line.replace(/^q[.\s:]\s*/i, "").trim();
+        }
+        // Check for options a) b) c) d) - must have content after the letter
+        else if (/^[a-d][.)]\s*.+/i.test(line)) {
+          const optionText = line.replace(/^[a-d][.)]\s*/i, "").trim();
+          options.push(optionText);
+        }
+        // Check for answer line - "A." followed by just a letter (a, b, c, or d)
+        else if (/^A[.\s:]\s*[a-d]$/i.test(line)) {
+          const ansText = line.replace(/^A[.\s:]\s*/i, "").trim().toLowerCase();
+          correctAnswer = ansText.charCodeAt(0) - 97;
+          foundAnswer = true;
+        }
+        // Check for explanation line (E. or E:)
+        else if (/^E[.\s:]/i.test(line)) {
+          explanation = line.replace(/^E[.\s:]\s*/i, "").trim();
+          foundExplanation = true;
+        }
+        // If no question yet, this might be the question text without Q. prefix
+        else if (!question && !foundAnswer && !foundExplanation) {
           question = line;
         }
       }
 
+      // Only add if we have a valid question with at least 2 options
       if (question && options.length >= 2) {
         while (options.length < 4) options.push("");
-        parsed.push({ id: generateId(), question, options: options.slice(0, 4), correctAnswer, explanation });
+        parsed.push({ 
+          id: generateId(), 
+          question, 
+          options: options.slice(0, 4), 
+          correctAnswer, 
+          explanation 
+        });
       }
     }
 
@@ -91,9 +108,9 @@ const AdminTestEditor = () => {
       setQuestions((prev) => [...prev.filter((q) => q.question.trim()), ...parsed]);
       setBulkText("");
       setShowBulk(false);
-      toast.success(`Parsed ${parsed.length} questions`);
+      toast.success(`Parsed ${parsed.length} question${parsed.length > 1 ? 's' : ''}`);
     } else {
-      toast.error("Could not parse any questions. Use format: Q. question, a) b) c) d) options, A. answer, E. explanation");
+      toast.error("Could not parse any questions. Use format: Q. question, a) b) c) d) options, A. answer letter, E. explanation");
     }
   };
 
