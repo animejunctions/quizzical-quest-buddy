@@ -12,6 +12,7 @@ import AdminResults from "./pages/AdminResults.tsx";
 import TestEntry from "./pages/TestEntry.tsx";
 import ExamPage from "./pages/ExamPage.tsx";
 import ResultPage from "./pages/ResultPage.tsx";
+import Leaderboard from "./pages/Leaderboard.tsx";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/test/:slug" element={<TestEntry />} />
           <Route path="/test/:slug/exam" element={<ExamPage />} />
           <Route path="/test/:slug/result" element={<ResultPage />} />
+          <Route path="/test/:testId/leaderboard" element={<Leaderboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

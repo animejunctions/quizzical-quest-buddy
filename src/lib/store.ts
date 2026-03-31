@@ -16,6 +16,8 @@ export interface Test {
   questions: Question[];
   createdAt: string;
   isActive: boolean;
+  shuffleQuestions?: boolean; // Shuffle question order
+  shuffleOptions?: boolean; // Randomize option order
 }
 
 export interface Attempt {
