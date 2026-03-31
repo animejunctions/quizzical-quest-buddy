@@ -4,7 +4,8 @@ import { verifyAdmin } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Shield } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Shield, ArrowLeft } from "lucide-react";
 
 const AdminLogin = () => {
   const [username, setUsername] = useState("");
@@ -24,6 +25,14 @@ const AdminLogin = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="absolute top-4 left-4">
+        <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
+          <ArrowLeft className="w-4 h-4 mr-2" /> Home
+        </Button>
+      </div>
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="glass rounded-xl p-8 w-full max-w-sm animate-slide-in">
         <div className="flex flex-col items-center mb-8">
           <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-4 glow-primary">

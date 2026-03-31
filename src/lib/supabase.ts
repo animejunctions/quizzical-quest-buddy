@@ -1,13 +1,21 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Get Supabase URL and Key - Vite injects these via define in vite.config.ts
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error('Missing Supabase environment variables');
-}
+// Create a mock client if env vars are missing (for development/preview)
+const createSupabaseClient = (): SupabaseClient => {
+  if (!supabaseUrl || !supabaseKey) {
+    console.warn('Supabase environment variables not set. Some features may not work.');
+    // Return a client with empty URL - will fail gracefully on API calls
+    return createClient('https://placeholder.supabase.co', 'placeholder-key');
+  }
+  return createClient(supabaseUrl, supabaseKey);
+};
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createSupabaseClient();
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
 
 // Type definitions for Supabase tables
 export interface Database {

@@ -23,6 +23,7 @@ export interface Test {
 export interface Attempt {
   id: string;
   testId: string;
+  name: string; // User's display name
   telegramUsername: string;
   answers: (number | null)[]; // index of selected option per question
   score: number;
@@ -32,6 +33,32 @@ export interface Attempt {
   warnings: number;
   autoSubmitted: boolean;
 }
+
+// Stored completed attempts in localStorage for "already submitted" check
+export interface StoredAttemptRecord {
+  testId: string;
+  attemptId: string;
+  testSlug: string;
+}
+
+export function getStoredAttempts(): StoredAttemptRecord[] {
+  return getItem<StoredAttemptRecord[]>("quizlab_submitted_tests", []);
+}
+
+export function saveStoredAttempt(record: StoredAttemptRecord) {
+  const records = getStoredAttempts();
+  const exists = records.find(r => r.testId === record.testId);
+  if (!exists) {
+    records.push(record);
+    setItem("quizlab_submitted_tests", records);
+  }
+}
+
+export function getStoredAttemptByTestId(testId: string): StoredAttemptRecord | undefined {
+  return getStoredAttempts().find(r => r.testId === testId);
+}
+
+import { supabase, isSupabaseConfigured } from './supabase';
 
 const ADMIN_USERNAME = "alter69x";
 const ADMIN_PASSWORD = "test123";
@@ -64,8 +91,53 @@ export function getTestById(id: string): Test | undefined {
   return getTests().find((t) => t.id === id);
 }
 
-export function getTestBySlug(slug: string): Test | undefined {
-  return getTests().find((t) => t.slug === slug);
+export async function getTestBySlug(slug: string): Promise<Test | undefined> {
+  try {
+    const { data, error } = await supabase
+      .from('tests')
+      .select(`
+        id,
+        name,
+        slug,
+        secret_code,
+        time_limit,
+        created_at,
+        is_active,
+        shuffle_questions,
+        shuffle_options,
+        questions:questions(*)
+      `)
+      .eq('slug', slug)
+      .eq('is_active', true)
+      .single();
+
+    if (error || !data) {
+      console.error('Error fetching test by slug:', error);
+      return undefined;
+    }
+
+    return {
+      id: data.id,
+      name: data.name,
+      slug: data.slug,
+      secretCode: data.secret_code,
+      timeLimit: data.time_limit,
+      createdAt: data.created_at,
+      isActive: data.is_active,
+      shuffleQuestions: data.shuffle_questions,
+      shuffleOptions: data.shuffle_options,
+      questions: (data.questions || []).map((q: any) => ({
+        id: q.id,
+        question: q.question,
+        options: q.options,
+        correctAnswer: q.correct_answer,
+        explanation: q.explanation,
+      })).sort((a: any, b: any) => a.id.localeCompare(b.id)),
+    };
+  } catch (error) {
+    console.error('Error in getTestBySlug:', error);
+    return undefined;
+  }
 }
 
 export function saveTest(test: Test) {
@@ -87,6 +159,95 @@ export function getAttempts(): Attempt[] {
 
 export function getAttemptsByTest(testId: string): Attempt[] {
   return getAttempts().filter((a) => a.testId === testId);
+}
+
+export async function checkExistingAttemptByUsername(testId: string, telegramUsername: string): Promise<Attempt | null> {
+  // Check localStorage first
+  const localAttempts = getAttempts();
+  const localAttempt = localAttempts.find(
+    a => a.testId === testId && a.telegramUsername.toLowerCase() === telegramUsername.toLowerCase()
+  );
+  if (localAttempt) {
+    return localAttempt;
+  }
+
+  // Then check Supabase if configured
+  if (!isSupabaseConfigured) {
+    return null;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('attempts')
+      .select('*')
+      .eq('test_id', testId)
+      .ilike('telegram_username', telegramUsername)
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      return null;
+    }
+
+    return {
+      id: data.id,
+      testId: data.test_id,
+      telegramUsername: data.telegram_username,
+      answers: data.answers || [],
+      score: data.score,
+      totalQuestions: data.total_questions,
+      startedAt: data.started_at,
+      submittedAt: data.submitted_at,
+      warnings: data.warnings,
+      autoSubmitted: data.auto_submitted,
+    };
+  } catch (error) {
+    console.error('Error checking existing attempt:', error);
+    return null;
+  }
+}
+
+export async function saveAttemptToSupabase(
+  attempt: Attempt,
+  deviceFingerprint: string,
+  ipAddress?: string
+): Promise<boolean> {
+  // Skip if Supabase is not configured
+  if (!isSupabaseConfigured) {
+    console.log('Supabase not configured, skipping remote save');
+    return false;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('attempts')
+      .insert({
+        id: attempt.id,
+        test_id: attempt.testId,
+        name: attempt.name,
+        telegram_username: attempt.telegramUsername,
+        answers: attempt.answers,
+        score: attempt.score,
+        total_questions: attempt.totalQuestions,
+        started_at: attempt.startedAt,
+        submitted_at: attempt.submittedAt,
+        warnings: attempt.warnings,
+        auto_submitted: attempt.autoSubmitted,
+        device_fingerprint: deviceFingerprint,
+        ip_address: ipAddress,
+        user_agent: navigator.userAgent,
+      });
+
+    if (error) {
+      console.error('Error saving attempt to Supabase:', error);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error in saveAttemptToSupabase:', error);
+    return false;
+  }
 }
 
 export function saveAttempt(attempt: Attempt) {

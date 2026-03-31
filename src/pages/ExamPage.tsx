@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getTestById, saveAttempt, generateId, type Test } from "@/lib/store";
+import { saveAttempt, saveAttemptToSupabase, generateId, saveStoredAttempt, type Test } from "@/lib/store";
+import { getTestById } from "@/lib/supabase-service";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, AlertTriangle, Clock, Send } from "lucide-react";
+import { ChevronLeft, ChevronRight, AlertTriangle, Clock, Send, Loader2 } from "lucide-react";
 
 const ExamPage = () => {
   const { slug } = useParams();
@@ -17,8 +18,17 @@ const ExamPage = () => {
   const warningsRef = useRef(0);
   const submittedRef = useRef(false);
 
+  const userName = sessionStorage.getItem("quizlab_user_name");
   const telegramUser = sessionStorage.getItem("quizlab_user");
   const testId = sessionStorage.getItem("quizlab_test_id");
+  const testSlug = sessionStorage.getItem("quizlab_test_slug") || slug;
+  const deviceFingerprintRef = useRef<string>("");
+
+  // Generate device fingerprint
+  useEffect(() => {
+    const fp = `${navigator.userAgent}-${navigator.language}-${new Date().getTimezoneOffset()}`;
+    deviceFingerprintRef.current = btoa(fp);
+  }, []);
 
   const submitTest = useCallback(() => {
     if (submittedRef.current || !test) return;
@@ -33,6 +43,7 @@ const ExamPage = () => {
     const attempt = {
       id: generateId(),
       testId: test.id,
+      name: userName || "Anonymous",
       telegramUsername: telegramUser || "unknown",
       answers: [...answers],
       score,
@@ -43,27 +54,54 @@ const ExamPage = () => {
       autoSubmitted: warningsRef.current >= 3 || (timeLeft !== null && timeLeft <= 0),
     };
 
+    // Save to localStorage (backup)
     saveAttempt(attempt);
+
+    // Save to browser cache for "already submitted" check
+    localStorage.setItem(`quizlab_result_${testSlug}`, JSON.stringify(attempt));
+    
+    // Save record of submission
+    saveStoredAttempt({
+      testId: test.id,
+      attemptId: attempt.id,
+      testSlug: testSlug || "",
+    });
+
+    // Save to Supabase
+    saveAttemptToSupabase(attempt, deviceFingerprintRef.current).catch(err => {
+      console.error("Failed to save to Supabase:", err);
+    });
+
     sessionStorage.setItem("quizlab_result", JSON.stringify(attempt));
     navigate(`/test/${slug}/result`);
-  }, [test, answers, telegramUser, timeLeft, slug, navigate]);
+  }, [test, answers, userName, telegramUser, timeLeft, slug, testSlug, navigate]);
 
   useEffect(() => {
-    if (!testId || !telegramUser) {
-      navigate(`/test/${slug}`);
-      return;
-    }
-    const t = getTestById(testId);
-    if (!t) {
-      navigate(`/test/${slug}`);
-      return;
-    }
-    setTest(t);
-    setAnswers(new Array(t.questions.length).fill(null));
-    if (t.timeLimit > 0) {
-      setTimeLeft(t.timeLimit * 60);
-    }
-    sessionStorage.setItem("quizlab_start", new Date().toISOString());
+    const loadTest = async () => {
+      if (!testId || !telegramUser) {
+        navigate(`/test/${slug}`);
+        return;
+      }
+      
+      try {
+        const t = await getTestById(testId);
+        if (!t) {
+          navigate(`/test/${slug}`);
+          return;
+        }
+        setTest(t);
+        setAnswers(new Array(t.questions.length).fill(null));
+        if (t.timeLimit > 0) {
+          setTimeLeft(t.timeLimit * 60);
+        }
+        sessionStorage.setItem("quizlab_start", new Date().toISOString());
+      } catch (error) {
+        console.error("Error loading test:", error);
+        navigate(`/test/${slug}`);
+      }
+    };
+    
+    loadTest();
   }, [testId, telegramUser, slug, navigate]);
 
   // Timer
@@ -140,7 +178,18 @@ const ExamPage = () => {
     };
   }, []);
 
-  if (!test || submitted) return null;
+  if (submitted) return null;
+
+  if (!test) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass rounded-xl p-8 text-center">
+          <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading exam...</p>
+        </div>
+      </div>
+    );
+  }
 
   const q = test.questions[current];
   const allAnswered = answers.every((a) => a !== null);

@@ -1,27 +1,47 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getTests, deleteTest, type Test } from "@/lib/store";
+import { type Test } from "@/lib/store";
+import { getTests, deleteTest } from "@/lib/supabase-service";
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, Edit, Users, LogOut, Copy } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Plus, Trash2, Edit, Users, LogOut, Copy, BarChart3, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 const AdminDashboard = () => {
   const [tests, setTests] = useState<Test[]>([]);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  const loadTests = async () => {
+    setLoading(true);
+    try {
+      const data = await getTests();
+      setTests(data);
+    } catch (error) {
+      console.error("Error loading tests:", error);
+      toast.error("Failed to load tests");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (sessionStorage.getItem("quizlab_admin") !== "true") {
       navigate("/admin");
       return;
     }
-    setTests(getTests());
+    loadTests();
   }, [navigate]);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Delete this test?")) {
-      deleteTest(id);
-      setTests(getTests());
-      toast.success("Test deleted");
+      const success = await deleteTest(id);
+      if (success) {
+        await loadTests();
+        toast.success("Test deleted");
+      } else {
+        toast.error("Failed to delete test");
+      }
     }
   };
 
@@ -35,10 +55,11 @@ const AdminDashboard = () => {
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground text-sm">Manage your tests</p>
+            <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
+            <p className="text-muted-foreground text-sm">Manage your tests and view results</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Button onClick={() => navigate("/admin/test/new")}>
               <Plus className="w-4 h-4 mr-1" /> New Test
             </Button>
@@ -54,7 +75,12 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {tests.length === 0 ? (
+        {loading ? (
+          <div className="glass rounded-xl p-12 text-center">
+            <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading tests...</p>
+          </div>
+        ) : tests.length === 0 ? (
           <div className="glass rounded-xl p-12 text-center">
             <p className="text-muted-foreground mb-4">No tests created yet</p>
             <Button onClick={() => navigate("/admin/test/new")}>
@@ -75,16 +101,19 @@ const AdminDashboard = () => {
                   </div>
                 </div>
                 <div className="flex gap-1.5 shrink-0">
-                  <Button size="sm" variant="ghost" onClick={() => copyLink(test.slug)}>
+                  <Button size="sm" variant="ghost" onClick={() => copyLink(test.slug)} title="Copy link">
                     <Copy className="w-3.5 h-3.5" />
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/results/${test.id}`)}>
+                  <Button size="sm" variant="ghost" onClick={() => navigate(`/test/${test.id}/leaderboard`)} title="Leaderboard">
+                    <BarChart3 className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/results/${test.id}`)} title="View results">
                     <Users className="w-3.5 h-3.5" />
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/test/${test.id}`)}>
+                  <Button size="sm" variant="ghost" onClick={() => navigate(`/admin/test/${test.id}`)} title="Edit test">
                     <Edit className="w-3.5 h-3.5" />
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => handleDelete(test.id)}>
+                  <Button size="sm" variant="ghost" onClick={() => handleDelete(test.id)} title="Delete test">
                     <Trash2 className="w-3.5 h-3.5 text-destructive" />
                   </Button>
                 </div>
