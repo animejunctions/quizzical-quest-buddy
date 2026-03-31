@@ -1,17 +1,8 @@
+
 {
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "outputDirectory": "dist",
-  "env": [
-    {
-      "key": "VITE_SUPABASE_URL",
-      "description": "Your Supabase project URL"
-    },
-    {
-      "key": "VITE_SUPABASE_ANON_KEY",
-      "description": "Your Supabase public anon key"
-    }
-  ],
   "rewrites": [
     {
       "source": "/(.*)",
