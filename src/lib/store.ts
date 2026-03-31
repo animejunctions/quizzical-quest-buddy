@@ -33,7 +33,7 @@ export interface Attempt {
   autoSubmitted: boolean;
 }
 
-import { supabase } from './supabase';
+import { supabase, isSupabaseConfigured } from './supabase';
 
 const ADMIN_USERNAME = "alter69x";
 const ADMIN_PASSWORD = "test123";
@@ -137,12 +137,26 @@ export function getAttemptsByTest(testId: string): Attempt[] {
 }
 
 export async function checkExistingAttemptByUsername(testId: string, telegramUsername: string): Promise<Attempt | null> {
+  // Check localStorage first
+  const localAttempts = getAttempts();
+  const localAttempt = localAttempts.find(
+    a => a.testId === testId && a.telegramUsername.toLowerCase() === telegramUsername.toLowerCase()
+  );
+  if (localAttempt) {
+    return localAttempt;
+  }
+
+  // Then check Supabase if configured
+  if (!isSupabaseConfigured) {
+    return null;
+  }
+
   try {
     const { data, error } = await supabase
       .from('attempts')
       .select('*')
       .eq('test_id', testId)
-      .eq('telegram_username', telegramUsername)
+      .ilike('telegram_username', telegramUsername)
       .limit(1)
       .single();
 
@@ -173,6 +187,12 @@ export async function saveAttemptToSupabase(
   deviceFingerprint: string,
   ipAddress?: string
 ): Promise<boolean> {
+  // Skip if Supabase is not configured
+  if (!isSupabaseConfigured) {
+    console.log('Supabase not configured, skipping remote save');
+    return false;
+  }
+
   try {
     const { error } = await supabase
       .from('attempts')

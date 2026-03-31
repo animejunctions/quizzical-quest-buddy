@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getTestBySlug, checkExistingAttemptByUsername } from "@/lib/store";
+import { getTestBySlug, getTestById, checkExistingAttemptByUsername, getTests } from "@/lib/store";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FileText, AlertCircle } from "lucide-react";
+import { FileText, AlertCircle, Loader2 } from "lucide-react";
 
 const TestEntry = () => {
   const { slug } = useParams();
@@ -13,17 +14,55 @@ const TestEntry = () => {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [test, setTest] = useState<any>(null);
 
   useEffect(() => {
     const loadTest = async () => {
       if (slug) {
-        const t = await getTestBySlug(slug);
-        setTest(t);
+        setPageLoading(true);
+        try {
+          // Try Supabase first if configured, then fallback to localStorage
+          if (isSupabaseConfigured) {
+            const t = await getTestBySlug(slug);
+            if (t) {
+              setTest(t);
+              setPageLoading(false);
+              return;
+            }
+          }
+          
+          // Fallback to localStorage
+          const localTests = getTests();
+          const localTest = localTests.find(t => t.slug === slug);
+          if (localTest) {
+            setTest(localTest);
+          }
+        } catch (err) {
+          console.error('Error loading test:', err);
+          // Fallback to localStorage on error
+          const localTests = getTests();
+          const localTest = localTests.find(t => t.slug === slug);
+          if (localTest) {
+            setTest(localTest);
+          }
+        }
+        setPageLoading(false);
       }
     };
     loadTest();
   }, [slug]);
+
+  if (pageLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass rounded-xl p-8 text-center">
+          <Loader2 className="w-8 h-8 text-primary animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Loading test...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!test) {
     return (

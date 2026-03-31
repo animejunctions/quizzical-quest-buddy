@@ -154,7 +154,18 @@ const ExamPage = () => {
     };
   }, []);
 
-  if (!test || submitted) return null;
+  if (submitted) return null;
+
+  if (!test) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="glass rounded-xl p-8 text-center">
+          <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading exam...</p>
+        </div>
+      </div>
+    );
+  }
 
   const q = test.questions[current];
   const allAnswered = answers.every((a) => a !== null);

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getTestById, type Attempt, type Test } from "@/lib/store";
+import { getTestById, getAttemptsByTest, type Attempt, type Test } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 const AdminResults = () => {
   const { testId } = useParams();
@@ -32,30 +32,43 @@ const AdminResults = () => {
             setTestName(testData.name);
           }
 
-          // Fetch attempts from Supabase
-          const { data, error } = await supabase
-            .from("attempts")
-            .select("*")
-            .eq("test_id", testId)
-            .order("submitted_at", { ascending: false });
+          // Try fetching attempts from Supabase first
+          if (isSupabaseConfigured) {
+            const { data, error } = await supabase
+              .from("attempts")
+              .select("*")
+              .eq("test_id", testId)
+              .order("submitted_at", { ascending: false });
 
-          if (error) {
-            console.error("Error fetching attempts:", error);
-          } else if (data) {
-            const formattedAttempts = data.map((a: any) => ({
-              id: a.id,
-              testId: a.test_id,
-              telegramUsername: a.telegram_username,
-              answers: a.answers || [],
-              score: a.score,
-              totalQuestions: a.total_questions,
-              startedAt: a.started_at,
-              submittedAt: a.submitted_at,
-              warnings: a.warnings,
-              autoSubmitted: a.auto_submitted,
-            }));
-            setAttempts(formattedAttempts);
+            if (!error && data && data.length > 0) {
+              const formattedAttempts = data.map((a: any) => ({
+                id: a.id,
+                testId: a.test_id,
+                telegramUsername: a.telegram_username,
+                answers: a.answers || [],
+                score: a.score,
+                totalQuestions: a.total_questions,
+                startedAt: a.started_at,
+                submittedAt: a.submitted_at,
+                warnings: a.warnings,
+                autoSubmitted: a.auto_submitted,
+              }));
+              setAttempts(formattedAttempts);
+            } else {
+              // Fallback to localStorage if Supabase returns no data
+              const localAttempts = getAttemptsByTest(testId);
+              setAttempts(localAttempts);
+            }
+          } else {
+            // Use localStorage if Supabase not configured
+            const localAttempts = getAttemptsByTest(testId);
+            setAttempts(localAttempts);
           }
+        } catch (error) {
+          console.error("Error loading results:", error);
+          // Fallback to localStorage on error
+          const localAttempts = getAttemptsByTest(testId);
+          setAttempts(localAttempts);
         } finally {
           setLoading(false);
         }

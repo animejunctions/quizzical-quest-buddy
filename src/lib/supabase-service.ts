@@ -1,5 +1,5 @@
-import { supabase } from './supabase';
-import { Question, Test, Attempt } from './store';
+import { supabase, isSupabaseConfigured } from './supabase';
+import { Question, Test, Attempt, getAttemptsByTest as getLocalAttemptsByTest, getTestById as getLocalTestById } from './store';
 
 // ============= TESTS =============
 export async function getTests(): Promise<Test[]> {
@@ -357,18 +357,45 @@ export async function getCheatViolations(attemptId: string) {
 
 // ============= LEADERBOARD =============
 export async function getLeaderboard(testId: string, limit: number = 10) {
-  const { data, error } = await supabase
-    .from('leaderboard_view')
-    .select('*')
-    .eq('test_id', testId)
-    .limit(limit);
+  // First try Supabase if configured
+  if (isSupabaseConfigured) {
+    try {
+      const { data, error } = await supabase
+        .from('leaderboard_view')
+        .select('*')
+        .eq('test_id', testId)
+        .limit(limit);
 
-  if (error) {
-    console.error('Error fetching leaderboard:', error);
-    return [];
+      if (!error && data && data.length > 0) {
+        return data;
+      }
+    } catch (err) {
+      console.error('Error fetching leaderboard from Supabase:', err);
+    }
   }
 
-  return data || [];
+  // Fallback to localStorage
+  const localAttempts = getLocalAttemptsByTest(testId);
+  const test = getLocalTestById(testId);
+  
+  // Convert to leaderboard format
+  const leaderboard = localAttempts
+    .filter(a => a.submittedAt)
+    .map((a, index) => ({
+      test_id: a.testId,
+      test_name: test?.name || 'Unknown Test',
+      telegram_username: a.telegramUsername,
+      score: a.score,
+      total_questions: a.totalQuestions,
+      percentage: (a.score / a.totalQuestions) * 100,
+      submitted_at: a.submittedAt,
+      rank: 0, // Will be set after sorting
+    }))
+    .sort((a, b) => b.percentage - a.percentage || new Date(a.submitted_at!).getTime() - new Date(b.submitted_at!).getTime())
+    .slice(0, limit)
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+  return leaderboard;
 }
 
 export async function getTopScorers(limit: number = 50) {
